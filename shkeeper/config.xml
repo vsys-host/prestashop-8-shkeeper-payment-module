@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>shkeeper</name>
+    <displayName><![CDATA[SHKeeper]]></displayName>
+    <version><![CDATA[1.0.0]]></version>
+    <discription>SHKeeper Cryptocurrencies Payment Gateway</discription>
+    <author><![CDATA[vsys-host]]></author>
+    <tab><![CDATA[payments_gateways]]></tab>
+    <need_instance>0</need_instance>
+    <is_configrable>1</is_configrable>
+</module>
