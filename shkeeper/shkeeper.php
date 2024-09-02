@@ -22,6 +22,7 @@ class Shkeeper extends PaymentModule
         $this->author_uri = "https://shkeeper.io";
         $this->need_instance = 0;
         $this->is_configurable = 1;
+        $this->module_key = '39d6992dd2c0a5ed263be1e98e70a898';
         $this->ps_version_compliancy = [
             "min" => "1.7",
             "max" => _PS_VERSION_,
