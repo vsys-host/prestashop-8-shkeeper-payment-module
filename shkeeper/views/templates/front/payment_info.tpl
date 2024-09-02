@@ -3,17 +3,17 @@
         <div class="col-sm-12">
             <div class="payment-container">
                 {if $instructions}
-                    <p>{$instructions}</p>
+                    <p>{$instructions|escape:'htmlall':'UTF-8'}</p>
                 {/if}
 
                 <div class="crypto-icons">
                     <select id="shkeeper-currency" name="shkeeper-currency">
                     {foreach $currencies as $currency}
-                        <option value="{$currency.name}">{$currency.display_name}</option>
+                        <option value="{$currency.name|escape:'htmlall':'UTF-8'}">{$currency.display_name|escape:'htmlall':'UTF-8'}</option>
                     {/foreach}
                     </select>
                 </div>
-                <input type="button" value="{$entry_request_address}" id="get-address" class="btn btn-danger" style="margin-top: 2vh;" />
+                <input type="button" value="{$entry_request_address|escape:'htmlall':'UTF-8'}" id="get-address" class="btn btn-danger" style="margin-top: 2vh;" />
             </div>
         </div>
 
@@ -22,17 +22,17 @@
                 Can't get cryptocurrency address. Choose another payment method.
             </div>
             <div class="pay-container" hidden>
-                <strong>{$entry_address}:</strong>
+                <strong>{$entry_address|escape:'htmlall':'UTF-8'}:</strong>
                 <p id="wallet-address"></p>
             </div>
             <div class="pay-container" hidden>
-                <strong>{$entry_amount}:</strong>
+                <strong>{$entry_amount|escape:'htmlall':'UTF-8'}:</strong>
                 <p id="amount"></p>
             </div>
             <div id="qrcode"></div>
         </div>
         <div class="col-sm-12" hidden>
-            <div id="post-url" hidden>{$wallet_controller}</div>
+            <div id="post-url" hidden>{$wallet_controller|escape:'htmlall':'UTF-8'}</div>
             <input type="text" id="wallet_address" name="wallet_address" value="" hidden/>
             <input type="text" id="wallet_amount" name="wallet_amount" value="" hidden/>
         </div>

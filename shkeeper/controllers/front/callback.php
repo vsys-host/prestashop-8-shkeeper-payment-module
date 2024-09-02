@@ -1,4 +1,8 @@
 <?php
+// disable loading outside prestashop
+if (!defined("_PS_VERSION_")) {
+    exit();
+}
 
 class ShkeeperCallbackModuleFrontController extends ModuleFrontController
 {

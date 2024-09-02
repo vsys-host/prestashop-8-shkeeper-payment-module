@@ -2,7 +2,7 @@
 <module>
     <name>shkeeper</name>
     <displayName><![CDATA[SHKeeper]]></displayName>
-    <version><![CDATA[1.0.0]]></version>
+    <version><![CDATA[1.0.1]]></version>
     <discription>SHKeeper Cryptocurrencies Payment Gateway</discription>
     <author><![CDATA[vsys-host]]></author>
     <tab><![CDATA[payments_gateways]]></tab>
