@@ -10,7 +10,6 @@ if (!defined("_PS_VERSION_")) {
 
 class Shkeeper extends PaymentModule
 {
-    public array $ps_version_compliancy;
     public bool $is_configurable;
 
     public function __construct()
@@ -23,7 +22,7 @@ class Shkeeper extends PaymentModule
         $this->need_instance = 0;
         $this->is_configurable = 1;
         $this->module_key = '39d6992dd2c0a5ed263be1e98e70a898';
-        $this->ps_version_compliancy = [
+        $this->ps_versions_compliancy = [
             "min" => "1.7",
             "max" => _PS_VERSION_,
         ];
