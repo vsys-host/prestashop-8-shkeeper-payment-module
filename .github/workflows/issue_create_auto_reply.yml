@@ -4,7 +4,6 @@ on:
     types:
       - opened
 
-
 jobs:
   add-comment:
     runs-on: ubuntu-latest
@@ -12,6 +11,7 @@ jobs:
       - name: checkout repo
         uses: actions/checkout@v4
         with:
+          repository: vsys-host/shkeeper.io
           sparse-checkout: |
             .github/issue_create_auto_reply.md
           sparse-checkout-cone-mode: false
