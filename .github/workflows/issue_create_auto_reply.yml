@@ -1,0 +1,16 @@
+name: Add comment
+on:
+  issues:
+    types:
+      - opened
+
+
+jobs:
+  add-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add comment
+        run: gh issue comment "$NUMBER" --body-file .github/issue_create_auto_reply.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ github.event.issue.number }}
