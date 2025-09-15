@@ -1,7 +1,7 @@
 # prestashop-8-shkeeper-payment-module
 SHKeeper payment gateway plugin for PrestaShop
 
-*Module has been tested on CMS Prestashop 8.1.7*
+*Module has been tested on CMS Prestashop 9.0.0*
 
 ## Installation
 ### Upload via Module Manager

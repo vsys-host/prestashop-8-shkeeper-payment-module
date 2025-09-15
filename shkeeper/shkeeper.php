@@ -10,13 +10,13 @@ if (!defined("_PS_VERSION_")) {
 
 class Shkeeper extends PaymentModule
 {
-    public bool $is_configurable;
+    public $is_configurable;
 
     public function __construct()
     {
         $this->name = "shkeeper";
         $this->tab = "payments_gateways";
-        $this->version = "1.0.1";
+        $this->version = "1.0.2";
         $this->author = "vsys-host";
         $this->author_uri = "https://shkeeper.io";
         $this->need_instance = 0;
