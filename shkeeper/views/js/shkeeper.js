@@ -1,7 +1,6 @@
-// catch post URL 
-const postURL = document.getElementById("post-url").innerText;
-
 $("#get-address").on('click', function () {
+    // catch post URL
+    const postURL = document.getElementById("post-url")?.innerText;
 
     // hide empty address and amount elements
     $('.pay-container').attr('hidden', 'hidden')

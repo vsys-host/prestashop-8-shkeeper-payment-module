@@ -16,7 +16,7 @@ class Shkeeper extends PaymentModule
     {
         $this->name = "shkeeper";
         $this->tab = "payments_gateways";
-        $this->version = "1.0.2";
+        $this->version = "1.0.3";
         $this->author = "vsys-host";
         $this->author_uri = "https://shkeeper.io";
         $this->need_instance = 0;
