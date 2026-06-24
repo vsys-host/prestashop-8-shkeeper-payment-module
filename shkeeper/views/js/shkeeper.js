@@ -33,8 +33,10 @@ $("#get-address").on('click', function () {
 
             } else {
                 // add details info to elements
-                $('#wallet-address').append('' + json.wallet);
-                $('#amount').append('' + json.amount + ' <strong>' + json.display_name + '</strong>');
+                $('#wallet-address').text(json.wallet);
+                $('#amount').empty()
+                    .append(document.createTextNode(json.amount + ' '))
+                    .append($('<strong>').text(json.display_name));
 
                 // update inputs
                 $('input[name=wallet_address]').val(json.wallet)
@@ -43,16 +45,29 @@ $("#get-address").on('click', function () {
                 // show address and amount elements
                 $('.pay-container').removeAttr('hidden')
 
-                // Generate QRCode to scan
-                new QRCode(document.getElementById("qrcode"), {
-                    text: json.wallet + '?amount=' + json.amount,
-                    width: 128,
-                    height: 128,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
-                });
+                // Generate the QR as inline SVG. 
+                if (typeof qrcode !== 'undefined') {
+                    var qr = qrcode(0, 'H');
+                    qr.addData(json.wallet + '?amount=' + json.amount);
+                    qr.make();
+                    // cellSize 4, 16px (4-module) quiet zone so wallet apps scan reliably
+                    document.getElementById('qrcode').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 16 });
+                }
             }
         }
     });
+});
+
+// Copy-to-clipboard for the wallet address shown on the customer order page.
+$(document).on('click', '.shk-copy', function () {
+    var input = document.getElementById($(this).data('target'));
+    if (!input) {
+        return;
+    }
+    input.select();
+    try {
+        navigator.clipboard.writeText(input.value);
+    } catch (e) {
+        document.execCommand('copy');
+    }
 });

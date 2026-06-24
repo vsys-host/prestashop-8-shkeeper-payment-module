@@ -9,10 +9,13 @@ class ShkeeperWalletModuleFrontController extends ModuleFrontController
 
     public function postProcess()
     {
-        $cryptoCurrency = Tools::getValue('currency');
+        $cryptoCurrency = (string) Tools::getValue('currency');
 
-        if (empty($cryptoCurrency)) {
-            return false;
+        if (!preg_match('/^[A-Za-z0-9_-]{1,32}$/', $cryptoCurrency)) {
+            header('Content-Type: application/json');
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Invalid currency']);
+            exit;
         }
 
         $cart = $this->context->cart;
@@ -25,11 +28,19 @@ class ShkeeperWalletModuleFrontController extends ModuleFrontController
             "callback_url"  => $this->context->link->getModuleLink('shkeeper', 'callback', ['ajax' => true]),
         ];
 
-        $walletAddress = $this->postData("/$cryptoCurrency/payment_request", $order_data);
+        $walletAddress = $this->postData('/' . rawurlencode($cryptoCurrency) . '/payment_request', $order_data);
         $info = json_decode($walletAddress, true);
+
+        if (!is_array($info) || empty($info['wallet'])) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Unable to get wallet address']);
+            exit;
+        }
+
         $this->context->cookie->__set('shkeeper_wallet', $info['wallet']);
         $this->context->cookie->__set('shkeeper_amount', $info['amount']);
         $this->context->cookie->__set('shkeeper_crypto', $info['display_name']);
+        $this->context->cookie->__set('shkeeper_crypto_code', $cryptoCurrency);
 
         header("Content-Type: application/json");
         echo $walletAddress;
@@ -50,6 +61,8 @@ class ShkeeperWalletModuleFrontController extends ModuleFrontController
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_POSTFIELDS => json_encode($data),
             CURLOPT_POST => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
         ];
 
         $curl = curl_init();

@@ -48,11 +48,6 @@ class ShkeeperValidationModuleFrontController extends ModuleFrontController
             return;
         }
 
-        // save address with amount required for this order
-
-        $walletAddress = $this->context->cookie->__get("shkeeper_wallet");
-        $amount = $this->context->cookie->__get("shkeeper_amount");
-
         $currency = $this->context->currency;
         $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
 
@@ -71,13 +66,16 @@ class ShkeeperValidationModuleFrontController extends ModuleFrontController
         // OrderId
         $orderId = $this->module->currentOrder;
 
-        // messages
-        $message = "Wallet: " . $this->context->cookie->__get("shkeeper_wallet") . " - ";
-        $message .= "Amount: " . $this->context->cookie->__get("shkeeper_amount") . " ";
-        $message .= $this->context->cookie->__get("shkeeper_crypto");
-
-        // save address and amout to order messages
-        $this->addOrderMessage($orderId, $message, $cart->id_customer);
+        // Persist the crypto payment details on the order itself 
+        // so staff — and the customer — can still see the coin, wallet address and
+        // required amount even if the checkout page was closed.
+        Shkeeper::writeOrderMeta($orderId, "Info", [
+            "Coin"     => (string) $this->context->cookie->__get("shkeeper_crypto_code"),
+            "Name"     => (string) $this->context->cookie->__get("shkeeper_crypto"),
+            "Required" => (string) $this->context->cookie->__get("shkeeper_amount"),
+            "Fiat"     => $total . ' ' . $currency->iso_code,
+            "Address"  => (string) $this->context->cookie->__get("shkeeper_wallet"),
+        ]);
 
         Tools::redirect(
             $this->context->link->getPageLink(
@@ -94,31 +92,4 @@ class ShkeeperValidationModuleFrontController extends ModuleFrontController
         );
     }
 
-    private function addOrderMessage($orderId, $message, $cutomerId)
-    {
-        if (version_compare(_PS_VERSION_, "1.7.0", ">")) {
-            // Add this message in the customer thread
-            $customer_thread = new CustomerThread();
-            $customer_thread->id_contact = 0;
-            $customer_thread->id_customer = (int) $cutomerId;
-            $customer_thread->id_shop = (int) $this->context->shop->id;
-            $customer_thread->id_order = (int) $orderId;
-            $customer_thread->id_lang = (int) $this->context->language->id;
-            $customer_thread->token = Tools::passwdGen(12);
-            $customer_thread->add();
-
-            $customer_message = new CustomerMessage();
-            $customer_message->id_customer_thread = $customer_thread->id;
-            $customer_message->id_employee = 0;
-            $customer_message->message = $message;
-            $customer_message->private = 1;
-            $customer_message->add();
-        } else {
-            $orderMessage = new Message();
-            $orderMessage->id_order = $orderId;
-            $orderMessage->message = $message;
-            $orderMessage->private = true;
-            $orderMessage->save();
-        }
-    }
 }

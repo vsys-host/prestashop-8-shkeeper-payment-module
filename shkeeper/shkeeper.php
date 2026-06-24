@@ -16,14 +16,14 @@ class Shkeeper extends PaymentModule
     {
         $this->name = "shkeeper";
         $this->tab = "payments_gateways";
-        $this->version = "1.0.3";
+        $this->version = "1.0.5";
         $this->author = "vsys-host";
         $this->author_uri = "https://shkeeper.io";
         $this->need_instance = 0;
         $this->is_configurable = 1;
         $this->module_key = '39d6992dd2c0a5ed263be1e98e70a898';
         $this->ps_versions_compliancy = [
-            "min" => "1.7",
+            "min" => "1.7.7.0",
             "max" => _PS_VERSION_,
         ];
 
@@ -60,9 +60,192 @@ class Shkeeper extends PaymentModule
         return parent::install() &&
             $this->registerHook("PaymentOptions") &&
             $this->registerHook("displayHeader") &&
+            $this->registerHook("displayAdminOrderMainBottom") &&
+            $this->registerHook("displayOrderDetail") &&
             // && $this->registerHook('PaymentReturn')
             Configuration::updateValue("SHKEEPER", "shkeeper") &&
             $this->addOrderState("shkeeper");
+    }
+
+    /**
+     * Tag prefix for the private order messages used to persist crypto payment
+     * data. One "Info" message is written at checkout, one
+     * "Status" message is kept up to date by the callback.
+     */
+    const META_PREFIX = "[SHKeeper-";
+
+    /**
+     * Create or update (in place) a private order message holding one line of
+     * "Key: Value | Key: Value" crypto payment data for the given tag.
+     */
+    public static function writeOrderMeta($idOrder, $tag, array $data)
+    {
+        $pairs = [];
+        foreach ($data as $key => $value) {
+            // keep the line parseable: strip the delimiters from values
+            $value = str_replace(["|", ":"], " ", (string) $value);
+            $pairs[] = $key . ": " . trim($value);
+        }
+
+        $prefix = self::META_PREFIX . $tag . "] ";
+        $body = $prefix . implode(" | ", $pairs);
+
+        $idMessage = (int) Db::getInstance()->getValue(
+            "SELECT id_message FROM `" . _DB_PREFIX_ . "message`
+             WHERE id_order = " . (int) $idOrder . "
+             AND message LIKE '" . pSQL($prefix) . "%'
+             ORDER BY id_message DESC"
+        );
+
+        $message = $idMessage ? new Message($idMessage) : new Message();
+        $message->message = $body;
+
+        if ($idMessage) {
+            return $message->update();
+        }
+
+        $message->id_order = (int) $idOrder;
+        $message->private = 1;
+
+        return $message->add();
+    }
+
+    /**
+     * Read the latest private order message for a tag and parse it back into an
+     * associative array. Returns [] when none is present.
+     */
+    public static function readOrderMeta($idOrder, $tag)
+    {
+        $prefix = self::META_PREFIX . $tag . "] ";
+
+        $body = (string) Db::getInstance()->getValue(
+            "SELECT message FROM `" . _DB_PREFIX_ . "message`
+             WHERE id_order = " . (int) $idOrder . "
+             AND message LIKE '" . pSQL($prefix) . "%'
+             ORDER BY id_message DESC"
+        );
+
+        if ($body === "") {
+            return [];
+        }
+
+        $line = substr($body, strlen($prefix));
+        $out = [];
+
+        foreach (explode(" | ", $line) as $pair) {
+            $kv = explode(": ", $pair, 2);
+            if (count($kv) === 2) {
+                $out[trim($kv[0])] = trim($kv[1]);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Format a fiat amount with the current locale.
+     */
+    private function formatFiat($amount, Currency $currency)
+    {
+        $amount = (float) $amount;
+        $context = Context::getContext();
+
+        if (method_exists($context, "getCurrentLocale")) {
+            $locale = $context->getCurrentLocale();
+            if ($locale) {
+                return $locale->formatPrice($amount, $currency->iso_code);
+            }
+        }
+
+        return number_format($amount, 2) . " " . $currency->iso_code;
+    }
+
+    /**
+     * Assemble the view-model rendered on both the back-office and customer
+     * order pages.
+     */
+    private function buildPaymentView($idOrder)
+    {
+        $order = new Order((int) $idOrder);
+        if (!Validate::isLoadedObject($order)) {
+            return null;
+        }
+
+        $info = self::readOrderMeta($idOrder, "Info");
+        $status = self::readOrderMeta($idOrder, "Status");
+
+        if (empty($info) && empty($status)) {
+            return null;
+        }
+
+        $toFloat = static function ($value) {
+            return preg_match('/-?\d+(\.\d+)?/', (string) $value, $m) ? (float) $m[0] : 0.0;
+        };
+
+        $coin = $info["Coin"] ?? ($status["Coin"] ?? "");
+
+        $coinName = !empty($info["Name"]) ? $info["Name"] : $coin;
+        $wallet = $info["Address"] ?? ($status["Address"] ?? "");
+        $requiredCrypto = isset($info["Required"]) ? $toFloat($info["Required"]) : null;
+        $requiredFiat = (float) $order->total_paid;
+        $receivedCrypto = isset($status["Received"]) ? $toFloat($status["Received"]) : 0.0;
+        $receivedFiat = isset($status["Received fiat"]) ? $toFloat($status["Received fiat"]) : 0.0;
+        $overpaidFiat = isset($status["Overpaid"]) ? $toFloat($status["Overpaid"]) : 0.0;
+        $rawStatus = strtoupper($status["Status"] ?? "AWAITING");
+
+        $labels = [
+            "PAID" => ["Paid in full", "success"],
+            "OVERPAID" => ["Overpaid", "info"],
+            "PARTIAL" => ["Partially paid", "warning"],
+            "AWAITING" => ["Awaiting payment", "secondary"],
+        ];
+        list($statusLabel, $statusClass) = $labels[$rawStatus] ?? [$rawStatus, "secondary"];
+
+        $currency = new Currency((int) $order->id_currency);
+
+        return [
+            "shk_coin" => $coin,
+            "shk_coin_name" => $coinName,
+            "shk_wallet" => $wallet,
+            "shk_required_crypto" => $requiredCrypto,
+            "shk_required_fiat" => $this->formatFiat($requiredFiat, $currency),
+            "shk_received_crypto" => $receivedCrypto,
+            "shk_received_fiat" => $this->formatFiat($receivedFiat, $currency),
+            "shk_shortfall_crypto" => $requiredCrypto !== null ? max(0, $requiredCrypto - $receivedCrypto) : null,
+            "shk_shortfall_fiat" => $this->formatFiat(max(0, $requiredFiat - $receivedFiat), $currency),
+            "shk_overpaid_fiat" => $overpaidFiat > 0 ? $this->formatFiat($overpaidFiat, $currency) : null,
+            "shk_status_label" => $statusLabel,
+            "shk_status_class" => $statusClass,
+        ];
+    }
+
+    public function hookDisplayAdminOrderMainBottom($params)
+    {
+        $view = $this->buildPaymentView((int) ($params["id_order"] ?? 0));
+        if ($view === null) {
+            return "";
+        }
+
+        $this->smarty->assign($view);
+
+        return $this->fetch("module:shkeeper/views/templates/hook/admin_order_payment.tpl");
+    }
+
+    public function hookDisplayOrderDetail($params)
+    {
+        $order = $params["order"] ?? null;
+        if (!Validate::isLoadedObject($order)) {
+            return "";
+        }
+
+        $view = $this->buildPaymentView((int) $order->id);
+        if ($view === null) {
+            return "";
+        }
+
+        $this->smarty->assign($view);
+
+        return $this->fetch("module:shkeeper/views/templates/hook/order_detail_payment.tpl");
     }
 
     public function uninstall()
@@ -90,6 +273,10 @@ class Shkeeper extends PaymentModule
             );
             $configKey = Tools::getValue("SHKEEPER_APIKEY");
             $configURL = Tools::getValue("SHKEEPER_APIURL");
+
+            if (empty($configKey)) {
+                $configKey = Configuration::get("SHKEEPER_APIKEY");
+            }
 
             // auto validate the URL
             $configURL = $this->addURLSchema($configURL);
@@ -147,15 +334,19 @@ class Shkeeper extends PaymentModule
                         "required" => false,
                     ],
                     [
-                        "type" => "text",
+                        "type" => "password",
                         "label" => $this->trans(
                             "API Key",
                             [],
                             "Modules.Shkeeper.Admin"
                         ),
                         "name" => "SHKEEPER_APIKEY",
-                        "desc" => "API Key",
-                        "required" => true,
+                        "desc" => $this->trans(
+                            "Leave blank to keep the current API key.",
+                            [],
+                            "Modules.Shkeeper.Admin"
+                        ),
+                        "required" => false,
                     ],
                     [
                         "type" => "text",
@@ -202,10 +393,8 @@ class Shkeeper extends PaymentModule
             "SHKEEPER_INSTRUCTION",
             Configuration::get("SHKEEPER_INSTRUCTION")
         );
-        $helper->fields_value["SHKEEPER_APIKEY"] = Tools::getValue(
-            "SHKEEPER_APIKEY",
-            Configuration::get("SHKEEPER_APIKEY")
-        );
+
+        $helper->fields_value["SHKEEPER_APIKEY"] = "";
         $helper->fields_value["SHKEEPER_APIURL"] = Tools::getValue(
             "SHKEEPER_APIURL",
             Configuration::get("SHKEEPER_APIURL")
@@ -225,11 +414,22 @@ class Shkeeper extends PaymentModule
 
     public function hookDisplayHeader()
     {
+        // Canvas-free QR library (renders inline SVG).
+        $this->context->controller->registerJavascript(
+            "shkeeper-qrcode",
+            "modules/" . $this->name . "/views/js/qrcode.min.js",
+            [
+                "position" => "bottom",
+                "priority" => 90,
+            ]
+        );
+
         $this->context->controller->registerJavascript(
             "shkeeper-js",
             "modules/" . $this->name . "/views/js/shkeeper.js",
             [
                 "position" => "bottom",
+                "priority" => 100,
             ]
         );
     }
@@ -289,10 +489,14 @@ class Shkeeper extends PaymentModule
         $instructions = Configuration::get("SHKEEPER_INSTRUCTION");
         $currencies = $this->getData("/crypto");
 
+        if (!is_array($currencies)) {
+            $currencies = [];
+        }
+
         return [
             "instructions" => $instructions,
-            "status" => $currencies["status"],
-            "currencies" => $currencies["crypto_list"],
+            "status" => $currencies["status"] ?? false,
+            "currencies" => $currencies["crypto_list"] ?? [],
             "wallet_controller" => Context::getContext()->link->getModuleLink(
                 "shkeeper",
                 "wallet",
@@ -356,6 +560,8 @@ class Shkeeper extends PaymentModule
             CURLOPT_URL => $base_url . $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
         ];
 
         $curl = curl_init();
